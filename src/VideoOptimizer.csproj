@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
@@ -6,11 +6,13 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PublishAot>true</PublishAot>
+		<MinVerTagPrefix>v</MinVerTagPrefix>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="CliFx" Version="3.0.0" />
 		<PackageReference Include="CliWrap" Version="3.10.2" />
+		<PackageReference Include="MinVer" Version="5.0.0" PrivateAssets="All" />
 	</ItemGroup>
 
 	<ItemGroup>
