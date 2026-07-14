@@ -84,7 +84,8 @@ jobs:
               --enable-filter=scale,fps,aresample,format,pan,volume \
               --disable-doc \
               --disable-debug \
-              --extra-ldflags="-static"
+              --extra-ldflags="-static" \
+              --pkg-config-flags="--static"
           fi
           
           echo "Compiling FFmpeg..."
