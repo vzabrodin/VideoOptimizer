@@ -1,0 +1,112 @@
+name: Build and Bundle VideoOptimizer
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Get FFmpeg Latest Commit SHA
+        id: ffmpeg-sha
+        shell: bash
+        run: |
+          SHA=$(curl -s https://api.github.com/repos/FFmpeg/FFmpeg/commits/master | jq -r .sha)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "Latest FFmpeg Commit SHA: $SHA"
+
+      - name: Cache FFmpeg Binaries and Workspace
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ffmpeg/ffmpeg.exe
+            ffmpeg/ffprobe.exe
+            ffmpeg/**/*.o
+            ffmpeg/config.h
+          key: ffmpeg-build-${{ steps.ffmpeg-sha.outputs.sha }}
+          restore-keys: |
+            ffmpeg-build-
+
+      - name: Setup MSYS2
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-x264
+            yasm
+            make
+            git
+            pkg-config
+
+      - name: Compile Minimal FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          if [ ! -d "ffmpeg" ]; then
+            git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg
+          fi
+          cd ffmpeg
+          git fetch origin
+          git checkout ${{ steps.ffmpeg-sha.outputs.sha }}
+          
+          if [ ! -f "config.h" ]; then
+            echo "Running minimal FFmpeg configure..."
+            ./configure \
+              --disable-everything \
+              --disable-shared \
+              --enable-static \
+              --enable-gpl \
+              --enable-libx264 \
+              --enable-ffmpeg \
+              --enable-ffprobe \
+              --enable-decoder=h264,hevc,vp9,av1,aac,opus,flac,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le \
+              --enable-encoder=libx264,aac \
+              --enable-demuxer=mov,matroska,aac,ogg \
+              --enable-muxer=mp4,null \
+              --enable-parser=h264,hevc,vp9,av1,aac,opus \
+              --enable-protocol=file \
+              --enable-filter=scale,fps,aresample,format,pan,volume \
+              --disable-doc \
+              --disable-debug \
+              --extra-libs="-static" \
+              --pkg-config-flags="--static"
+          fi
+          
+          echo "Compiling FFmpeg..."
+          make -j$(nproc)
+          
+          echo "Stripping debug symbols..."
+          strip ffmpeg.exe
+          strip ffprobe.exe
+
+      - name: Publish C# Native AOT App
+        run: dotnet publish -r win-x64 -c Release -o publish
+
+      - name: Bundle FFmpeg with published App
+        shell: pwsh
+        run: |
+          Copy-Item -Path ffmpeg/ffmpeg.exe -Destination publish/
+          Copy-Item -Path ffmpeg/ffprobe.exe -Destination publish/
+          
+      - name: Upload Published Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VideoOptimizer-win-x64
+          path: publish/
