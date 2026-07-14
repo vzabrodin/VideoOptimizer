@@ -94,7 +94,7 @@ jobs:
           strip ffprobe.exe
 
       - name: Publish C# Native AOT App
-        run: dotnet publish -r win-x64 -c Release -o publish
+        run: dotnet publish src/VideoOptimizer.csproj -r win-x64 -c Release -o publish
 
       - name: Bundle FFmpeg with published App
         shell: pwsh
